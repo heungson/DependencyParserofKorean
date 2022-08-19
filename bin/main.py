@@ -1,4 +1,6 @@
 import argparse, os, sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).parent.parent))
 
 from sentence_analyzer import SentenceAnalyzer
 
@@ -21,7 +23,6 @@ if __name__ == "__main__":
     save_file = opt.save_file
     use_gpu = opt.use_gpu
     batch_size = opt.batch_size
-
     sentences = []
     try:
         with open(os.path.join(root_dir, file_name), 'r', encoding='utf-8') as f:
@@ -30,7 +31,7 @@ if __name__ == "__main__":
                 sentences.append(line)
 
     except UnicodeDecodeError:
-        print("File Encoding 오류({}) 기본 인코딩은 utf-8입니다.".format(len(fail_file)))
+        print("File Encoding 오류: 기본 인코딩은 utf-8입니다.")
         exit()
 
     sentence_size = len(sentences)

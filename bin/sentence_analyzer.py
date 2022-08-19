@@ -17,12 +17,13 @@ from neuronlp2.io import CoNLLXWriter
 from neuronlp2.tasks import parser
 
 from collections import OrderedDict
+from bin.util import *
 
 
 class SentenceAnalyzer(object):
-    def __init__(self, morphology_analysis="./models/trained.chkpt",
-                 morphology_vocab="./models/sejong.pt",
-                 dependency_parser_path="./models",
+    def __init__(self, morphology_analysis=str(Path(ROOT_PATH, "models/trained.chkpt")),
+                 morphology_vocab=str(Path(ROOT_PATH, "models/sejong.pt")),
+                 dependency_parser_path=str(Path(ROOT_PATH, "models")),
                  dependency_parser_name="DependencyParser.pt",
                  debug=False, system=False, batch_size=30, gpu=False):
         self.debug = debug
@@ -172,17 +173,18 @@ class SentenceAnalyzer(object):
 
         if not self.system:
             total_batch = len(data_loader)
+        eos_token_idx = self.preprocess_data['dict']['tgt']['</s>']
 
         for idx, batch in enumerate(data_loader):
             if not self.system:
                 sys.stdout.write("\r형태소 분석 중: {}/{}".format(idx+1, total_batch))
                 sys.stdout.flush()
 
-            all_hyp, all_scores = self.morphology_analyzer.translate_batch(*batch)
+            all_hyp, _ = self.morphology_analyzer.translate_batch(*batch)
             for idx_seqs in all_hyp:
                 nbest_sentences = []
                 for idx_seq in idx_seqs:
-                    pred_line = " ".join([data_loader.dataset.tgt_idx2word[idx] for idx in idx_seq][:-1])
+                    pred_line = " ".join([data_loader.dataset.tgt_idx2word[idx] for idx in idx_seq[:idx_seq.index(eos_token_idx)]])
                     if self.debug:
                         print("Morphology Character Output Lengths: {}".format(len(pred_line.split(" "))))
                     nbest_sentences.append(pred_line)
@@ -193,7 +195,9 @@ class SentenceAnalyzer(object):
         err_code, err_msg, convert_output_sentences, not_convert_output_sentences = self.sentence_processing.character_to_morphology(input_sentences, restore_symbol_output_sentences, system=self.system)
         if err_code != -1:
             return {"error_code":err_code, "error_msg":err_msg}
-
+        
+        
+        
         if self.debug:
             for org_sentence, org_sentence_space_info, input_sentence, sentence_symbol_mapping, output_sentence in zip(org_sentences, org_sentence_space_infos, input_sentences, sentence_symbol_mappings, convert_output_sentences):
                 print("ORG sentence: {}".format(org_sentence))

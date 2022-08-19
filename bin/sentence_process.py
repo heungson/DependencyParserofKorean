@@ -1,12 +1,12 @@
+import os
 import re
-
 import transformer.Constants as Constants
 from UPosTagMap import *
 from SimplifyDepParse3 import SimplifyDepParse
-
+from bin.util import *
 
 class SentenceProcessing(object):
-    def __init__(self, symbol_file="./models/symbols.txt", debug=False):
+    def __init__(self, symbol_file=str(Path(ROOT_PATH, "models/symbols.txt")), debug=False):
         self.debug = debug
         self._symbol2key = self.readSymbolFile(symbol_file)
         self._hanja = "([\u2e80-\u2eff\u31c0-\u31ef\u3200-\u32ff\u3400-\u4dbf\u4e00-\u9fbf\uf900-\ufaff]+)"
@@ -225,7 +225,8 @@ class SentenceProcessing(object):
         tokens = sentence.split(" ")
         for token in tokens:
             if self.pattern_punctuations.search(token):
-                convert_sentence[-1] += token
+                if convert_sentence:
+                    convert_sentence[-1] += token
             else:
                 convert_sentence.append(token)
 
@@ -558,7 +559,7 @@ class SentenceProcessing(object):
         for real_sentence, org_sentence, org_space_info, output_sentence in zip(real_sentences, org_sentences, org_sentence_space_infos, output_sentences):
             if output_sentence is None:
                 continue
-            sentence = ["#SENT: {}".format(real_sentence)]
+            sentence = ["#SENT: " + real_sentence]
             org_tokens = [x.strip() for x in org_sentence.split(" ")]
             out_tokens = [x.strip() for x in output_sentence.split("<sa>") if x.strip() != ""]
 
@@ -567,13 +568,18 @@ class SentenceProcessing(object):
                 only_pos = []
 
                 for mo in token.split(" "):
-                    if mo == "//SP":
-                        m, p = "/", "SP"
-                    else:
-                        m, p = mo.split("/")
+                    try:
+                        if mo == "//SP":
+                            m, p = "/", "SP"
+                        else:
+                            m, p = mo.split("/")
+                        only_morph.append(m)
+                        only_pos.append(p)
+                    except ValueError:
+                        only_morph.append('X')
+                        only_pos.append('X')
 
-                    only_morph.append(m)
-                    only_pos.append(p)
+                    
                 input_xpostag = " ".join(only_pos)
                 lemma = " ".join(only_morph)
                 if space_info:

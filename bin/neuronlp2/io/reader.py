@@ -71,6 +71,8 @@ class CoNLLXReader(object):
             if len(words) > utils.MAX_EOJUL_LENGTH:
                 words = words[:utils.MAX_EOJUL_LENGTH]
                 word_ids = word_ids[:utils.MAX_EOJUL_LENGTH]
+                chars = chars[:utils.MAX_EOJUL_LENGTH]
+                char_ids = char_ids[:utils.MAX_EOJUL_LENGTH]
             word_seqs.append(words)
             word_id_seqs.append(word_ids)
             char_seqs.append(chars)

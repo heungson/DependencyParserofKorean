@@ -23,7 +23,7 @@ class PriorOrder(Enum):
 
 class BiRecurrentConvBiAffine(nn.Module):
     def __init__(self, word_dim, num_words, char_dim, num_chars, pos_dim, num_pos, num_filters, kernel_size, rnn_mode, hidden_size, num_layers, num_labels, arc_space, type_space,
-                 embedd_word=None, embedd_char=None, embedd_pos=None, p_in=0.33, p_out=0.33, p_rnn=(0.33, 0.33), biaffine=True, pos=True, char=True, gpu=False):
+                 embedd_word=None, embedd_char=None, embedd_pos=None, p_in=0.33, p_out=0.33, p_rnn=(0.33, 0.33), biaffine=True, pos=True, char=True, device='cpu'):
         super(BiRecurrentConvBiAffine, self).__init__()
 
         self.word_embedd = Embedding(num_words, word_dim, init_embedding=embedd_word)
@@ -35,7 +35,7 @@ class BiRecurrentConvBiAffine(nn.Module):
         self.num_labels = num_labels
         self.pos = pos
         self.char = char
-        self.gpu = gpu
+        self.device = device
 
         if rnn_mode == 'RNN':
             RNN = VarMaskedRNN
@@ -282,7 +282,7 @@ class StackPtrNet(nn.Module):
                  eojul_num_filters, eojul_kernel_size, rnn_mode, input_size_decoder, hidden_size, encoder_layers, decoder_layers,
                  num_labels, arc_space, type_space,
                  embedd_word=None, embedd_char=None, embedd_pos=None, p_in=0.33, p_out=0.33, p_rnn=(0.33, 0.33),
-                 biaffine=True, pos=True, char=True, eojul=True, prior_order='inside_out', skipConnect=False, grandPar=False, sibling=False, gpu=False):
+                 biaffine=True, pos=True, char=True, eojul=True, prior_order='inside_out', skipConnect=False, grandPar=False, sibling=False, device='cpu'):
 
         super(StackPtrNet, self).__init__()
         self.word_embedd = Embedding(num_words, word_dim, init_embedding=embedd_word)
@@ -315,7 +315,7 @@ class StackPtrNet(nn.Module):
         self.skipConnect = skipConnect
         self.grandPar = grandPar
         self.sibling = sibling
-        self.gpu = gpu
+        self.device = device
 
         if rnn_mode == 'RNN':
             RNN_ENCODER = VarMaskedRNN
@@ -691,7 +691,7 @@ class StackPtrNet(nn.Module):
         grand_parents = [[0] for _ in range(beam)] if self.grandPar else None
         siblings = [[0] for _ in range(beam)] if self.sibling else None
         skip_connects = [[h0] for _ in range(beam)] if self.skipConnect else None
-        children = torch.zeros(beam, 2 * length - 1).type_as(output_enc.data).long()
+        children = torch.zeros(beam, 2 * length - 1).to(self.device).type_as(output_enc.data).long()
         stacked_types = children.new(children.size()).zero_()
         hypothesis_scores = output_enc.data.new(beam).zero_()
         constraints = np.zeros([beam, length], dtype=np.bool)
@@ -709,9 +709,9 @@ class StackPtrNet(nn.Module):
         num_step = 2 * length - 1
         for t in range(num_step):
             # [num_hyp]
-            heads = torch.LongTensor([stacked_heads[i][-1] for i in range(num_hyp)]).type_as(children)
-            gpars = torch.LongTensor([grand_parents[i][-1] for i in range(num_hyp)]).type_as(children) if self.grandPar else None
-            sibs = torch.LongTensor([siblings[i].pop() for i in range(num_hyp)]).type_as(children) if self.sibling else None
+            heads = torch.LongTensor([stacked_heads[i][-1] for i in range(num_hyp)]).to(self.device).type_as(children)
+            gpars = torch.LongTensor([grand_parents[i][-1] for i in range(num_hyp)]).to(self.device).type_as(children) if self.grandPar else None
+            sibs = torch.LongTensor([siblings[i].pop() for i in range(num_hyp)]).to(self.device).type_as(children) if self.sibling else None
 
             # [decoder_layers, num_hyp, hidden_size]
             hs = torch.cat([skip_connects[i].pop() for i in range(num_hyp)], dim=1) if self.skipConnect else None
@@ -720,10 +720,9 @@ class StackPtrNet(nn.Module):
             src_encoding = output_enc[heads]
 
             if self.sibling:
-                if self.gpu:
-                    mask_sibs = torch.cuda.FloatTensor(sibs.ne(0).float().unsqueeze(1))
-                else:
-                    mask_sibs = torch.FloatTensor(sibs.ne(0).float().unsqueeze(1))
+                mask_sibs = torch.FloatTensor(sibs.ne(0).float().unsqueeze(1).cpu()).to(self.device)
+                if 'cuda' in self.device:
+                    mask_sibs = mask_sibs.to(self.device)
                 output_enc_sibling = output_enc[sibs] * mask_sibs
                 src_encoding = src_encoding + output_enc_sibling
 

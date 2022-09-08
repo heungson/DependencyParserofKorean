@@ -1,11 +1,20 @@
 import argparse, os, sys
-from pathlib import Path
-sys.path.append(str(Path(__file__).parent.parent))
-
+import math
+from threading import Thread
 from sentence_analyzer import SentenceAnalyzer
 
 import warnings
 warnings.filterwarnings(action='ignore')
+import torch
+
+def analyze(sentences, batch_size, output_file, device=None):
+    t = SentenceAnalyzer(batch_size=batch_size, device=device)
+    res_morphology = t.morphology_analysis(sentences)
+    res_parsing = t.dependency_parsing(res_morphology["result_sentences"], file=output_file)
+
+    fail_count = res_morphology["error_number"] + res_parsing["error_number"] + len(sentences) - len(res_parsing['result_sentences'])
+    print("\n분석 실패: {}".format(fail_count))
+    print("끝")
 
 
 if __name__ == "__main__":
@@ -14,14 +23,14 @@ if __name__ == "__main__":
     parser_main.add_argument('-root_dir', type=str, required=True)
     parser_main.add_argument('-file_name', type=str, required=True)
     parser_main.add_argument('-save_file', type=str, default="result.txt")
-    parser_main.add_argument('-use_gpu', action='store_true')
+    parser_main.add_argument('-use_gpu', nargs="+",type=int, default=None)
     parser_main.add_argument('-batch_size', type=int, default=30)
 
     opt = parser_main.parse_args()
     root_dir = opt.root_dir
     file_name = opt.file_name
     save_file = opt.save_file
-    use_gpu = opt.use_gpu
+    gpu_list = opt.use_gpu
     batch_size = opt.batch_size
     sentences = []
     try:
@@ -29,18 +38,53 @@ if __name__ == "__main__":
             for line in f:
                 line = line.strip()
                 sentences.append(line)
-
+        # random.shuffle(sentences)
     except UnicodeDecodeError:
         print("File Encoding 오류: 기본 인코딩은 utf-8입니다.")
         exit()
-
     sentence_size = len(sentences)
     print("문장 수: {}".format(sentence_size))
+    if gpu_list and len(gpu_list) >= 2:
+        available_gpu_list = []
+        for gpu_id in gpu_list:
+            try:
+                torch.cuda.get_device_name(gpu_id)
+                available_gpu_list.append(gpu_id)
+            except AssertionError:
+                continue
+        gpu_list = available_gpu_list
+            
+        thread_list = []
+        thread_sent_size = math.ceil(sentence_size / len(gpu_list))
+        thread_output_file_list = []
+        for i, thread_gpu in enumerate(gpu_list):
+            thread_sents = sentences[thread_sent_size*i:thread_sent_size*(i+1)]
+            thread_sents.sort(key=lambda x: len(x))
+            thread_output_file = os.path.join(root_dir, save_file + '_' + str(i))
+            thread = Thread(target=analyze, args=(thread_sents, batch_size, thread_output_file, f'cuda:{thread_gpu}'))
+            thread_list.append(thread)
+            thread_output_file_list.append(thread_output_file)
+        
+        for thread in thread_list:
+            thread.start()
+ 
+        for thread in thread_list:
+            thread.join()
+        
+        with open(os.path.join(root_dir, save_file), "w") as outfile:
+            for filename in thread_output_file_list:
+                with open(filename) as infile:
+                    contents = infile.read()
+                    outfile.write(contents)
+    else:
+        if gpu_list:
+            device = f'cuda:{gpu_list[0]}'
+        else:
+            device = 'cpu'
+        t = SentenceAnalyzer(batch_size=batch_size, device=device)
+        res_morphology = t.morphology_analysis(sentences)
+        res_parsing = t.dependency_parsing(res_morphology["result_sentences"], file=os.path.join(root_dir, save_file))
 
-    t = SentenceAnalyzer(batch_size=batch_size, gpu=use_gpu)
-    res_morphology = t.morphology_analysis(sentences)
-    res_parsing = t.dependency_parsing(res_morphology["result_sentences"], file=os.path.join(root_dir, save_file))
-
-    fail_count = res_morphology["error_number"] + res_parsing["error_number"]
-    print("\n분석 실패: {}".format(fail_count))
-    print("끝")
+        fail_count = res_morphology["error_number"] + res_parsing["error_number"] + sentence_size - len(res_parsing['result_sentences'])
+        print("\n분석 실패: {}".format(fail_count))
+        print("끝")

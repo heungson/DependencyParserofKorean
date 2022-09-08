@@ -1,9 +1,29 @@
-import os
 import re
+from pathlib import Path
 import transformer.Constants as Constants
 from UPosTagMap import *
 from SimplifyDepParse3 import SimplifyDepParse
-from bin.util import *
+from util import *
+import multiprocessing as mp
+from tqdm import tqdm
+import math
+
+
+def input_conversion_sentences_batch(input):
+        processor, sentences = input
+        org_sentences = []
+        org_sentence_space_infos = []
+        input_sentences = []
+        sentence_symbol_mappings = []
+        for sent in sentences:
+            input_sentence, sentence_symbol_mapping, org_of_sentence, org_space_info_of_sentence = processor.input_conversion(sent)
+            input_sentences.append(input_sentence)
+            sentence_symbol_mappings.append(sentence_symbol_mapping)
+            org_sentences.append(org_of_sentence)
+            org_sentence_space_infos.append(org_space_info_of_sentence)
+
+        return org_sentences, org_sentence_space_infos, input_sentences, sentence_symbol_mappings
+
 
 class SentenceProcessing(object):
     def __init__(self, symbol_file=str(Path(ROOT_PATH, "models/symbols.txt")), debug=False):
@@ -414,23 +434,32 @@ class SentenceProcessing(object):
         if self.debug:
             self.debug_print("ORG Sentence: {}\nConversion Sentence: {}\nMapping Symbols: {}\n\n".format(sentence, " ".join(input_sentence_characters), symbol_mapping.items()))
         return " ".join(input_sentence_characters), symbol_mapping, org_of_sentence, org_space_info_of_sentence
-
+        
     def input_conversion_sentences(self, sentences):
         """
         :param sentences: [sentence_1, sentence_2, sentence_3,...]
         :return: [[character of sentence_1], [character of sentence_2], ...]], [[{SF##: [...], SN##: [...], ...}], ...]
         """
+        batch_size = 3000
+        n_sentences = len(sentences)
+        n_batches = int(math.ceil(n_sentences / batch_size))
+        
         org_sentences = []
         org_sentence_space_infos = []
         input_sentences = []
         sentence_symbol_mappings = []
-        for sent in sentences:
-            input_sentence, sentence_symbol_mapping, org_of_sentence, org_space_info_of_sentence = self.input_conversion(sent)
-            input_sentences.append(input_sentence)
-            sentence_symbol_mappings.append(sentence_symbol_mapping)
-            org_sentences.append(org_of_sentence)
-            org_sentence_space_infos.append(org_space_info_of_sentence)
-
+        
+        with mp.Pool(processes=8) as p:
+            with tqdm(total=n_batches, desc="Converting inputs") as pbar:
+                sent_batches = [(self, sentences[batch_size*batch_idx:batch_size*(batch_idx+1)])
+                                for batch_idx in range(n_batches)]
+                for batch_ret in p.imap_unordered(
+                    input_conversion_sentences_batch, sent_batches):
+                    org_sentences.extend(batch_ret[0])
+                    org_sentence_space_infos.extend(batch_ret[1])
+                    input_sentences.extend(batch_ret[2])
+                    sentence_symbol_mappings.extend(batch_ret[3])
+                    pbar.update()
         return org_sentences, org_sentence_space_infos, input_sentences, sentence_symbol_mappings
 
     def get_instances_for_morphology(self, sentences, max_sent_len, system=True):
@@ -462,6 +491,8 @@ class SentenceProcessing(object):
         word_id_insts = []
 
         for s, symbol_mapping in zip(word_insts, sentence_symbol_mappings):
+            if s is None:
+                continue
             symbol_mapping.setdefault("<unk>", [])
             id_inst = []
             for w in s:

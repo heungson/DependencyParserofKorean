@@ -61,7 +61,7 @@ if __name__ == "__main__":
             thread_sents = sentences[thread_sent_size*i:thread_sent_size*(i+1)]
             thread_sents.sort(key=lambda x: len(x))
             thread_output_file = os.path.join(root_dir, save_file + '_' + str(i))
-            thread = Thread(target=analyze, args=(thread_sents, batch_size, thread_output_file, f'cuda:{thread_gpu}'))
+            thread = Thread(target=analyze, args=(thread_sents, batch_size, thread_output_file, thread_gpu))
             thread_list.append(thread)
             thread_output_file_list.append(thread_output_file)
         
@@ -78,9 +78,9 @@ if __name__ == "__main__":
                     outfile.write(contents)
     else:
         if gpu_list:
-            device = f'cuda:{gpu_list[0]}'
+            device = 0
         else:
-            device = 'cpu'
+            device = None
         t = SentenceAnalyzer(batch_size=batch_size, device=device)
         res_morphology = t.morphology_analysis(sentences)
         res_parsing = t.dependency_parsing(res_morphology["result_sentences"], file=os.path.join(root_dir, save_file))

@@ -23,7 +23,7 @@ from util import *
 
 def load_model(opt, device):
 
-    checkpoint = torch.load(opt.model, map_location=device)
+    checkpoint = torch.load(opt.model, map_location=torch.device(device))
     model_opt = checkpoint['settings']
 
     model = Transformer(
@@ -83,9 +83,7 @@ class SentenceAnalyzer(object):
         parser_m.add_argument('-use_gpu', nargs="+",type=int, default=None)
 
         opt = parser_m.parse_args()
-        
-        if 'cuda' in self.device:
-            opt.cuda = self.device
+        opt.cuda = self.device
             
         # Prepare DataLoader
         self.preprocess_data = torch.load(opt.vocab)
@@ -177,9 +175,8 @@ class SentenceAnalyzer(object):
 
         self.dependency.to(self.device)
 
-        if 'cuda' in self.device:
-            device_index = self.device.split(':')[-1]
-            self.dependency.load_state_dict(torch.load(model_name, map_location=lambda storage, loc: storage.cuda(device_index)))
+        if self.device is not None:
+            self.dependency.load_state_dict(torch.load(model_name, map_location=lambda storage, loc: storage.cuda(self.device)))
         else:
             self.dependency.load_state_dict(torch.load(model_name, map_location='cpu'))
         self.dependency.eval()
@@ -203,37 +200,32 @@ class SentenceAnalyzer(object):
                 src_word2idx=self.preprocess_data['dict']['src'],
                 tgt_word2idx=self.preprocess_data['dict']['tgt'],
                 src_insts=word_insts),
+            batch_size=self.batch_size,
             num_workers=8,
             collate_fn=collate_fn
         )
-        all_output_sentences = []
+        output_sentences = []
 
         if not self.system:
-            n_sentence = len(data_loader)
+            n_batch = int(math.ceil(len(data_loader) / self.batch_size))
         eos_token_idx = self.preprocess_data['dict']['tgt']['</s>']
         if self.device is not None:
             tqdm_desc = f'형태소 분석중 at gpu:{self.device}'
         else:
             tqdm_desc = '형태소 분석중'
-        with tqdm(total=n_sentence, desc=tqdm_desc) as pbar:
-            for sentence in data_loader:
-                all_hyp = self.morphology_analyzer.translate_sentence(sentence[0], sentence[1], self.device)
-                for idx_seqs in all_hyp:
-                    nbest_sentences = []
-                    for idx_seq in idx_seqs:
-                        try:
-                            eos_in_seq = idx_seq.index(eos_token_idx)
-                            pred_line = " ".join([data_loader.dataset.tgt_idx2word[idx] for idx in idx_seq[:eos_in_seq]])    
-                        except ValueError:
-                            continue
-                            
-                        if self.debug:
-                            print("Morphology Character Output Lengths: {}".format(len(pred_line.split(" "))))
-                        nbest_sentences.append(pred_line)
-                    all_output_sentences.append(nbest_sentences)
+        with tqdm(total=n_batch, desc=tqdm_desc) as pbar:
+            for batch in data_loader:
+                analyzed_list = self.morphology_analyzer.translate_batch(batch, self.device)
+                for idx_seq in analyzed_list:
+                    try:
+                        eos_in_seq = idx_seq.index(eos_token_idx)
+                        pred_line = " ".join([data_loader.dataset.tgt_idx2word[idx] for idx in idx_seq[:eos_in_seq]])    
+                    except ValueError:
+                        continue           
+                    if self.debug:
+                        print("Morphology Character Output Lengths: {}".format(len(pred_line.split(" "))))
+                    output_sentences.append(pred_line)
                 pbar.update()
-
-        output_sentences = [x[0] for x in all_output_sentences]
         restore_symbol_output_sentences = self.sentence_processing.convert_key_to_symbol(output_sentences, sentence_symbol_mappings)
         err_code, err_msg, convert_output_sentences, not_convert_output_sentences = self.sentence_processing.character_to_morphology(input_sentences, restore_symbol_output_sentences, system=self.system)
         if err_code != -1:
@@ -302,7 +294,7 @@ class SentenceAnalyzer(object):
         error_msg = ""
         pred_writer = CoNLLXWriter(self.word_alphabet, self.char_alphabet, self.pos_alphabet, self.type_alphabet)
 
-        datas = conllx_stacked_data.read_stacked_data_to_variable(input_sentences, self.word_alphabet, self.char_alphabet, self.pos_alphabet, self.type_alphabet, gpu_device=self.device, prior_order=self.prior_order)
+        datas = conllx_stacked_data.read_stacked_data_to_variable(input_sentences, self.word_alphabet, self.char_alphabet, self.pos_alphabet, self.type_alphabet, device=self.device, prior_order=self.prior_order)
         parsing_datas = []
 
         if not self.system:
@@ -310,7 +302,7 @@ class SentenceAnalyzer(object):
             total_datas = np.sum(np.array(datas[1]))
             cnt_datas = 0
 
-        for batch in conllx_stacked_data.iterate_batch_stacked_variable(datas, self.batch_size, gpu_device=self.device):
+        for batch in conllx_stacked_data.iterate_batch_stacked_variable(datas, self.batch_size, device=self.device):
             input_encoder, _, sentences, comments = batch
 
             word, char, pos, heads, types, masks, lengths = input_encoder

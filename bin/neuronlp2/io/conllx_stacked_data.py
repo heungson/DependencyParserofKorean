@@ -183,7 +183,7 @@ def read_stacked_data_list(sentences, word_alphabet, char_alphabet, pos_alphabet
     return data, max_lemma_length, max_char_length
 
 def read_stacked_data_to_variable(source_path, word_alphabet, char_alphabet, pos_alphabet, type_alphabet,
-                                  max_size=None, normalize_digits=True, prior_order='deep_first', gpu_device=None):
+                                  max_size=None, normalize_digits=True, prior_order='deep_first', device=None):
     data, max_lemma_length, max_char_length = read_stacked_data_list(source_path, word_alphabet, char_alphabet, pos_alphabet, type_alphabet, max_size=max_size, normalize_digits=normalize_digits, prior_order=prior_order)
     bucket_sizes = [len(data[b]) for b in range(len(_buckets))]
 
@@ -296,22 +296,22 @@ def read_stacked_data_to_variable(source_path, word_alphabet, char_alphabet, pos
         masks_d = torch.from_numpy(masks_d)
         lengths_d = torch.from_numpy(lengths_d)
 
-        if gpu_device is not None:
-            words = words.cuda(gpu_device)
-            chars = chars.cuda(gpu_device)
-            pos = pos.cuda(gpu_device)
-            heads = heads.cuda(gpu_device)
-            types = types.cuda(gpu_device)
-            masks_e = masks_e.cuda(gpu_device)
-            single = single.cuda(gpu_device)
-            lengths_e = lengths_e.cuda(gpu_device)
-            stacked_heads = stacked_heads.cuda(gpu_device)
-            children = children.cuda(gpu_device)
-            siblings = siblings.cuda(gpu_device)
-            stacked_types = stacked_types.cuda(gpu_device)
-            skip_connect = skip_connect.cuda(gpu_device)
-            masks_d = masks_d.cuda(gpu_device)
-            lengths_d = lengths_d.cuda(gpu_device)
+        if device is not None:
+            words = words.to(device)
+            chars = chars.to(device)
+            pos = pos.to(device)
+            heads = heads.to(device)
+            types = types.to(device)
+            masks_e = masks_e.to(device)
+            single = single.to(device)
+            lengths_e = lengths_e.to(device)
+            stacked_heads = stacked_heads.to(device)
+            children = children.to(device)
+            siblings = siblings.to(device)
+            stacked_types = stacked_types.to(device)
+            skip_connect = skip_connect.to(device)
+            masks_d = masks_d.to(device)
+            lengths_d = lengths_d.to(device)
 
         data_variable.append(((words, chars, pos, heads, types, masks_e, single, lengths_e),
                               (stacked_heads, children, siblings, stacked_types, skip_connect, masks_d, lengths_d),
@@ -340,7 +340,7 @@ def get_batch_stacked_variable(data, batch_size, unk_replace=0., gpu_device=None
     batch_size = min(bucket_size, batch_size)
     index = torch.randperm(bucket_size).long()[:batch_size]
     # if words.is_cuda:
-    #     index = index.cuda(gpu_device)
+    #     index = index.to(device)
     lemma_length = words.size(2)
     words = words[index]
     
@@ -350,26 +350,26 @@ def get_batch_stacked_variable(data, batch_size, unk_replace=0., gpu_device=None
         words = words * (ones - single[index] * noise)
 
     if gpu_device is not None:
-        words = words.cuda(gpu_device)
-        chars = chars.cuda(gpu_device)
-        pos = pos.cuda(gpu_device)
-        heads = heads.cuda(gpu_device)
-        types = types.cuda(gpu_device)
-        masks_e = masks_e.cuda(gpu_device)
-        lengths_e = lengths_e.cuda(gpu_device)
-        stacked_heads = stacked_heads.cuda(gpu_device)
-        children = children.cuda(gpu_device)
-        siblings = siblings.cuda(gpu_device)
-        stacked_types = stacked_types.cuda(gpu_device)
-        skip_connect = skip_connect.cuda(gpu_device)
-        masks_d = masks_d.cuda(gpu_device)
-        lengths_d = lengths_d.cuda(gpu_device)
+        words = words.to(device)
+        chars = chars.to(device)
+        pos = pos.to(device)
+        heads = heads.to(device)
+        types = types.to(device)
+        masks_e = masks_e.to(device)
+        lengths_e = lengths_e.to(device)
+        stacked_heads = stacked_heads.to(device)
+        children = children.to(device)
+        siblings = siblings.to(device)
+        stacked_types = stacked_types.to(device)
+        skip_connect = skip_connect.to(device)
+        masks_d = masks_d.to(device)
+        lengths_d = lengths_d.to(device)
 
     return (words, chars[index], pos[index], heads[index], types[index], masks_e[index], lengths_e[index]), \
            (stacked_heads[index], children[index], siblings[index], stacked_types[index], skip_connect[index], masks_d[index], lengths_d[index])
 
 
-def iterate_batch_stacked_variable(data, batch_size, unk_replace=0., shuffle=False, gpu_device=None):
+def iterate_batch_stacked_variable(data, batch_size, unk_replace=0., shuffle=False, device=None):
     data_variable, bucket_sizes = data
 
     bucket_indices = np.arange(len(_buckets))
@@ -394,15 +394,15 @@ def iterate_batch_stacked_variable(data, batch_size, unk_replace=0., shuffle=Fal
         if shuffle:
             indices = torch.randperm(bucket_size).long()
             if words.is_cuda:
-                indices = indices.cuda(gpu_device)
+                indices = indices.to(device)
         for start_idx in range(0, bucket_size, batch_size):
             if shuffle:
                 excerpt = indices[start_idx:start_idx + batch_size]
             else:
                 excerpt = slice(start_idx, start_idx + batch_size)
-            if gpu_device is not None:
-                yield (words[excerpt].cuda(gpu_device), chars[excerpt].cuda(gpu_device), pos[excerpt].cuda(gpu_device), heads[excerpt].cuda(gpu_device), types[excerpt].cuda(gpu_device), masks_e[excerpt].cuda(gpu_device), lengths_e[excerpt].cuda(gpu_device)), \
-                      (stacked_heads[excerpt].cuda(gpu_device), children[excerpt].cuda(gpu_device), siblings[excerpt].cuda(gpu_device), stacked_types[excerpt].cuda(gpu_device), skip_connect[excerpt].cuda(gpu_device), masks_d[excerpt].cuda(gpu_device), lengths_d[excerpt].cuda(gpu_device)), \
+            if device is not None:
+                yield (words[excerpt].to(device), chars[excerpt].to(device), pos[excerpt].to(device), heads[excerpt].to(device), types[excerpt].to(device), masks_e[excerpt].to(device), lengths_e[excerpt].to(device)), \
+                      (stacked_heads[excerpt].to(device), children[excerpt].to(device), siblings[excerpt].to(device), stacked_types[excerpt].to(device), skip_connect[excerpt].to(device), masks_d[excerpt].to(device), lengths_d[excerpt].to(device)), \
                       data_sentences[excerpt], data_comments[excerpt]
             else:
                 yield (words[excerpt], chars[excerpt], pos[excerpt], heads[excerpt], types[excerpt], masks_e[excerpt], lengths_e[excerpt]), \

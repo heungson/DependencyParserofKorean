@@ -691,7 +691,7 @@ class StackPtrNet(nn.Module):
         grand_parents = [[0] for _ in range(beam)] if self.grandPar else None
         siblings = [[0] for _ in range(beam)] if self.sibling else None
         skip_connects = [[h0] for _ in range(beam)] if self.skipConnect else None
-        children = torch.zeros(beam, 2 * length - 1).to(self.device).type_as(output_enc.data).long()
+        children = torch.zeros(beam, 2 * length - 1, device=self.device).type_as(output_enc.data).long()
         stacked_types = children.new(children.size()).zero_()
         hypothesis_scores = output_enc.data.new(beam).zero_()
         constraints = np.zeros([beam, length], dtype=np.bool)
@@ -709,9 +709,9 @@ class StackPtrNet(nn.Module):
         num_step = 2 * length - 1
         for t in range(num_step):
             # [num_hyp]
-            heads = torch.LongTensor([stacked_heads[i][-1] for i in range(num_hyp)]).to(self.device).type_as(children)
-            gpars = torch.LongTensor([grand_parents[i][-1] for i in range(num_hyp)]).to(self.device).type_as(children) if self.grandPar else None
-            sibs = torch.LongTensor([siblings[i].pop() for i in range(num_hyp)]).to(self.device).type_as(children) if self.sibling else None
+            heads = torch.tensor([stacked_heads[i][-1] for i in range(num_hyp)], device=torch.device(self.device)).type_as(children)
+            gpars = torch.tensor([grand_parents[i][-1] for i in range(num_hyp)], device=self.device).type_as(children) if self.grandPar else None
+            sibs = torch.tensor([siblings[i].pop() for i in range(num_hyp)], device=self.device).type_as(children) if self.sibling else None
 
             # [decoder_layers, num_hyp, hidden_size]
             hs = torch.cat([skip_connects[i].pop() for i in range(num_hyp)], dim=1) if self.skipConnect else None
@@ -720,9 +720,10 @@ class StackPtrNet(nn.Module):
             src_encoding = output_enc[heads]
 
             if self.sibling:
-                mask_sibs = torch.FloatTensor(sibs.ne(0).float().unsqueeze(1).cpu()).to(self.device)
-                if 'cuda' in self.device:
-                    mask_sibs = mask_sibs.to(self.device)
+                if self.device is not None:
+                    mask_sibs = torch.cuda.FloatTensor(sibs.ne(0).float().unsqueeze(1).tolist(), device=self.device)
+                else:
+                    mask_sibs = torch.FloatTensor(sibs.ne(0).float().unsqueeze(1))
                 output_enc_sibling = output_enc[sibs] * mask_sibs
                 src_encoding = src_encoding + output_enc_sibling
 

@@ -205,15 +205,14 @@ class SentenceAnalyzer(object):
             collate_fn=collate_fn
         )
         output_sentences = []
-
         if not self.system:
-            n_batch = int(math.ceil(len(data_loader) / self.batch_size))
+            print("")
         eos_token_idx = self.preprocess_data['dict']['tgt']['</s>']
         if self.device is not None:
             tqdm_desc = f'형태소 분석중 at gpu:{self.device}'
         else:
             tqdm_desc = '형태소 분석중'
-        with tqdm(total=n_batch, desc=tqdm_desc) as pbar:
+        with tqdm(total=len(data_loader), desc=tqdm_desc) as pbar:
             for batch in data_loader:
                 analyzed_list = self.morphology_analyzer.translate_batch(batch, self.device)
                 for idx_seq in analyzed_list:
@@ -298,27 +297,22 @@ class SentenceAnalyzer(object):
         parsing_datas = []
 
         if not self.system:
-            print("")
-            total_datas = np.sum(np.array(datas[1]))
-            cnt_datas = 0
-
-        for batch in conllx_stacked_data.iterate_batch_stacked_variable(datas, self.batch_size, device=self.device):
-            input_encoder, _, sentences, comments = batch
-
-            word, char, pos, heads, types, masks, lengths = input_encoder
-
-            if not self.system:
-                cnt_datas += len(sentences)
-                sys.stdout.write("\r의존구문 분석 중: {}/{}".format(cnt_datas, total_datas))
-                sys.stdout.flush()
-
-            heads_pred, types_pred, _, _ = self.dependency.decode(word, char, pos, mask=masks, length=lengths, beam=self.beam, leading_symbolic=conllx_stacked_data.NUM_SYMBOLIC_TAGS)
-
-            word = word.data.cpu().numpy()
-            pos = pos.data.cpu().numpy()
-            lengths = lengths.cpu().numpy()
-
-            parsing_datas.extend(pred_writer.overwrite(sentences, comments, word, pos, heads_pred, types_pred, lengths, symbolic_root=True))
+            print("")       
+        
+        if self.device is not None:
+            tqdm_desc = f'의존구문 분석중 at gpu:{self.device}'
+        else:
+            tqdm_desc = '의존구문 분석중'
+        with tqdm(total=int(math.ceil(len(input_sentences)/self.batch_size)), desc=tqdm_desc) as pbar:
+            for batch in conllx_stacked_data.iterate_batch_stacked_variable(datas, self.batch_size, device=self.device):
+                input_encoder, _, sentences, comments = batch
+                word, char, pos, heads, types, masks, lengths = input_encoder
+                heads_pred, types_pred, _, _ = self.dependency.decode(word, char, pos, mask=masks, length=lengths, beam=self.beam, leading_symbolic=conllx_stacked_data.NUM_SYMBOLIC_TAGS)
+                word = word.data.cpu().numpy()
+                pos = pos.data.cpu().numpy()
+                lengths = lengths.cpu().numpy()
+                parsing_datas.extend(pred_writer.overwrite(sentences, comments, word, pos, heads_pred, types_pred, lengths, symbolic_root=True))
+                pbar.update()
 
         clear_parsing_datas = []
         not_clear_parsing_datas = []

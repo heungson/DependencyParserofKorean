@@ -10,7 +10,7 @@ import math
 
 
 def input_conversion_sentences_batch(input):
-        processor, sentences = input
+        processor, sentences, sent_span = input
         org_sentences = []
         org_sentence_space_infos = []
         input_sentences = []
@@ -22,7 +22,7 @@ def input_conversion_sentences_batch(input):
             org_sentences.append(org_of_sentence)
             org_sentence_space_infos.append(org_space_info_of_sentence)
 
-        return org_sentences, org_sentence_space_infos, input_sentences, sentence_symbol_mappings
+        return org_sentences, org_sentence_space_infos, input_sentences, sentence_symbol_mappings, sent_span
 
 
 class SentenceProcessing(object):
@@ -444,22 +444,33 @@ class SentenceProcessing(object):
         n_sentences = len(sentences)
         n_batches = int(math.ceil(n_sentences / batch_size))
         
-        org_sentences = []
-        org_sentence_space_infos = []
-        input_sentences = []
-        sentence_symbol_mappings = []
-        
+        batch_org_sentences_list = []
+        batch_org_sentence_space_infos_list = []
+        batch_input_sentences_list = []
+        batch_sentence_symbol_mappings_list = []
+        batch_sent_span_list = []
         with mp.Pool(processes=8) as p:
             with tqdm(total=n_batches, desc="Converting inputs") as pbar:
-                sent_batches = [(self, sentences[batch_size*batch_idx:batch_size*(batch_idx+1)])
+                sent_batches = [(self, sentences[batch_size*batch_idx:batch_size*(batch_idx+1)], (batch_size*batch_idx, batch_size*(batch_idx+1)))
                                 for batch_idx in range(n_batches)]
                 for batch_ret in p.imap_unordered(
                     input_conversion_sentences_batch, sent_batches):
-                    org_sentences.extend(batch_ret[0])
-                    org_sentence_space_infos.extend(batch_ret[1])
-                    input_sentences.extend(batch_ret[2])
-                    sentence_symbol_mappings.extend(batch_ret[3])
+                    batch_org_sentences_list.append(batch_ret[0])
+                    batch_org_sentence_space_infos_list.append(batch_ret[1])
+                    batch_input_sentences_list.append(batch_ret[2])
+                    batch_sentence_symbol_mappings_list.append(batch_ret[3])
+                    batch_sent_span_list.append(batch_ret[4])
                     pbar.update()
+        org_sentences = [None] * n_sentences
+        org_sentence_space_infos = [None] * n_sentences
+        input_sentences = [None] * n_sentences
+        sentence_symbol_mappings = [None] * n_sentences
+        
+        for i, batch_sent_span in enumerate(batch_sent_span_list):
+            org_sentences[batch_sent_span[0]:batch_sent_span[1]] = batch_org_sentences_list[i]
+            org_sentence_space_infos[batch_sent_span[0]:batch_sent_span[1]] = batch_org_sentence_space_infos_list[i]
+            input_sentences[batch_sent_span[0]:batch_sent_span[1]] = batch_input_sentences_list[i]
+            sentence_symbol_mappings[batch_sent_span[0]:batch_sent_span[1]] = batch_sentence_symbol_mappings_list[i]
         return org_sentences, org_sentence_space_infos, input_sentences, sentence_symbol_mappings
 
     def get_instances_for_morphology(self, sentences, max_sent_len, system=True):

@@ -10,7 +10,7 @@
 - 의존 구문 분석은 Stack-Pointer Networks 모델 사용
 - Stack-Pointer Networks 소스는 아래 깃허브 소스를 사용함
   - https://github.com/yseokchoi/KoreanDependencyParserusingStackPointer
-- demo site: 오픈 예정
+  - https://github.com/XuezheMax/NeuroNLP2
 
 
 
@@ -22,11 +22,11 @@
 
 # 요구사항
 
-python == 3.6
+python >= 3.6
 
-pytorch == 0.4
+pytorch >= 0.4
 
-numpy == 1.15.4
+numpy >= 1.15.4
 
 
 

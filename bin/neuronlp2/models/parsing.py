@@ -709,7 +709,7 @@ class StackPtrNet(nn.Module):
         num_step = 2 * length - 1
         for t in range(num_step):
             # [num_hyp]
-            heads = torch.tensor([stacked_heads[i][-1] for i in range(num_hyp)], device=torch.device(self.device)).type_as(children)
+            heads = torch.tensor([stacked_heads[i][-1] for i in range(num_hyp)], device=self.device).type_as(children)
             gpars = torch.tensor([grand_parents[i][-1] for i in range(num_hyp)], device=self.device).type_as(children) if self.grandPar else None
             sibs = torch.tensor([siblings[i].pop() for i in range(num_hyp)], device=self.device).type_as(children) if self.sibling else None
 

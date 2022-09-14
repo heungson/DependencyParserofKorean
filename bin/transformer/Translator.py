@@ -101,7 +101,7 @@ class Translator(nn.Module):
             batch_beam_size = src_seq.size(0)
             batch_size = batch_beam_size // self.beam_size
             len_map = self.len_map.repeat(1, batch_beam_size).view(batch_beam_size, self.max_seq_len)
-            ans_idx_base = torch.tensor([batch_idx * self.beam_size for batch_idx in range(batch_size)], device=device)
+            ans_idx_base = torch.tensor([batch_idx * self.beam_size for batch_idx in range(batch_size)], device=device).view(batch_size, -1).repeat(1, self.beam_size)
             for step in range(2, self.max_seq_len):    # decode up to max length
                 dec_output = self._model_decode(gen_seq[:, :step], enc_output, src_seq, device)
                 gen_seq, scores = self._get_the_best_score_and_idx(gen_seq, dec_output, scores, step, device)
@@ -114,7 +114,7 @@ class Translator(nn.Module):
                     
             seq_lens, _ = len_map.masked_fill(~eos_locs, self.max_seq_len).min(1)
             scores = scores[:, 0]
-            _, ans_idx = scores.div(seq_lens.float() ** self.alpha).view(-1, self.beam_size).max(1)
+            _, ans_idx = scores.div(seq_lens.float() ** self.alpha).view(-1, self.beam_size).topk(self.beam_size, -1)
             ans_idx += ans_idx_base
             return gen_seq[ans_idx].tolist()
             

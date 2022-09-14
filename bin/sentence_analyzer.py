@@ -215,15 +215,21 @@ class SentenceAnalyzer(object):
         with tqdm(total=len(data_loader), desc=tqdm_desc) as pbar:
             for batch in data_loader:
                 analyzed_list = self.morphology_analyzer.translate_batch(batch, self.device)
-                for idx_seq in analyzed_list:
-                    try:
-                        eos_in_seq = idx_seq.index(eos_token_idx)
-                        pred_line = " ".join([data_loader.dataset.tgt_idx2word[idx] for idx in idx_seq[:eos_in_seq]])    
-                    except ValueError:
-                        continue           
+                for idx_seq_list in analyzed_list:
+                    success = False
+                    for idx_seq in idx_seq_list:
+                        try:
+                            eos_in_seq = idx_seq.index(eos_token_idx)
+                            pred_line = " ".join([data_loader.dataset.tgt_idx2word[idx] for idx in idx_seq[:eos_in_seq]])    
+                            output_sentences.append(pred_line)
+                            success = True
+                            break
+                        except ValueError:
+                            continue
+                    if not success:
+                        output_sentences.append("")
                     if self.debug:
                         print("Morphology Character Output Lengths: {}".format(len(pred_line.split(" "))))
-                    output_sentences.append(pred_line)
                 pbar.update()
         restore_symbol_output_sentences = self.sentence_processing.convert_key_to_symbol(output_sentences, sentence_symbol_mappings)
         err_code, err_msg, convert_output_sentences, not_convert_output_sentences = self.sentence_processing.character_to_morphology(input_sentences, restore_symbol_output_sentences, system=self.system)

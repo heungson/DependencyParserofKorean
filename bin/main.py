@@ -59,6 +59,8 @@ if __name__ == "__main__":
         thread_output_file_list = []
         for i, thread_gpu in enumerate(gpu_list):
             thread_sents = sentences[thread_sent_size*i:thread_sent_size*(i+1)]
+            if not thread_sents:
+                break
             thread_sents.sort(key=lambda x: len(x))
             thread_output_file = os.path.join(root_dir, save_file + '_' + str(i))
             thread = Thread(target=analyze, args=(thread_sents, batch_size, thread_output_file, thread_gpu))

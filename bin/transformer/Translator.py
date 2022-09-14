@@ -98,9 +98,10 @@ class Translator(nn.Module):
             src_pos = src_pos.to(device)
             src_seq, enc_output, gen_seq, scores = self._get_init_state(src_seq, src_pos, device)
             
-            ans_idx = 0   # default
             batch_beam_size = src_seq.size(0)
+            batch_size = batch_beam_size // self.beam_size
             len_map = self.len_map.repeat(1, batch_beam_size).view(batch_beam_size, self.max_seq_len)
+            ans_idx_base = torch.tensor([batch_idx * self.beam_size for batch_idx in range(batch_size)], device=device)
             for step in range(2, self.max_seq_len):    # decode up to max length
                 dec_output = self._model_decode(gen_seq[:, :step], enc_output, src_seq, device)
                 gen_seq, scores = self._get_the_best_score_and_idx(gen_seq, dec_output, scores, step, device)
@@ -108,10 +109,13 @@ class Translator(nn.Module):
                 # Check if all path finished
                 # -- locate the eos in the generated sequences
                 eos_locs = gen_seq == self.trg_eos_idx
-                # -- replace the eos with its position for the length penalty use
-                seq_lens, _ = len_map.masked_fill(~eos_locs, self.max_seq_len).min(1)
-                # -- check if all beams contain eos
                 if (eos_locs.sum(1) > 0).sum(0).item() == batch_beam_size:
-                    ans_idxs = torch.tensor([batch_idx * self.beam_size for batch_idx in range(batch_beam_size //self.beam_size)], device=device)
                     break
-        return gen_seq[ans_idxs].tolist()
+                    
+            seq_lens, _ = len_map.masked_fill(~eos_locs, self.max_seq_len).min(1)
+            scores = scores[:, 0]
+            _, ans_idx = scores.div(seq_lens.float() ** self.alpha).view(-1, self.beam_size).max(1)
+            ans_idx += ans_idx_base
+            return gen_seq[ans_idx].tolist()
+            
+ 

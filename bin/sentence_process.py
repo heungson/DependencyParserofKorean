@@ -435,7 +435,7 @@ class SentenceProcessing(object):
             self.debug_print("ORG Sentence: {}\nConversion Sentence: {}\nMapping Symbols: {}\n\n".format(sentence, " ".join(input_sentence_characters), symbol_mapping.items()))
         return " ".join(input_sentence_characters), symbol_mapping, org_of_sentence, org_space_info_of_sentence
         
-    def input_conversion_sentences(self, sentences):
+    def input_conversion_sentences(self, sentences, device):
         """
         :param sentences: [sentence_1, sentence_2, sentence_3,...]
         :return: [[character of sentence_1], [character of sentence_2], ...]], [[{SF##: [...], SN##: [...], ...}], ...]
@@ -449,8 +449,12 @@ class SentenceProcessing(object):
         batch_input_sentences_list = []
         batch_sentence_symbol_mappings_list = []
         batch_sent_span_list = []
+        if device is not None:
+            tqdm_desc = f'Converting inputs at gpu:{device}'
+        else:
+            tqdm_desc = 'Converting inputs'
         with mp.Pool(processes=8) as p:
-            with tqdm(total=n_batches, desc="Converting inputs") as pbar:
+            with tqdm(total=n_batches, desc=tqdm_desc) as pbar:
                 sent_batches = [(self, sentences[batch_size*batch_idx:batch_size*(batch_idx+1)], (batch_size*batch_idx, batch_size*(batch_idx+1)))
                                 for batch_idx in range(n_batches)]
                 for batch_ret in p.imap_unordered(

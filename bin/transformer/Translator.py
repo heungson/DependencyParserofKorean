@@ -117,5 +117,3 @@ class Translator(nn.Module):
             _, ans_idx = scores.div(seq_lens.float() ** self.alpha).view(-1, self.beam_size).topk(self.beam_size, -1)
             ans_idx += ans_idx_base
             return gen_seq[ans_idx].tolist()
-            
- 

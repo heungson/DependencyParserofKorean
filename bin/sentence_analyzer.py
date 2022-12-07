@@ -78,7 +78,7 @@ class SentenceAnalyzer(object):
 
         # dummy
         parser_m.add_argument('-root_dir', type=str, default="")
-        parser_m.add_argument('-file_name', type=str, default="")
+        parser_m.add_argument('-input_file', type=str, default="")
         parser_m.add_argument('-save_file', type=str, default="")
         parser_m.add_argument('-use_gpu', nargs="+",type=int, default=None)
 
@@ -111,7 +111,7 @@ class SentenceAnalyzer(object):
 
         # dummy
         args_parser.add_argument('-root_dir', type=str, default="")
-        args_parser.add_argument('-file_name', type=str, default="")
+        args_parser.add_argument('-input_file', type=str, default="")
         args_parser.add_argument('-save_file', type=str, default="")
         args_parser.add_argument('-use_gpu', nargs="+",type=int, default=None)
         args_parser.add_argument('-batch_size', type=int, default=self.batch_size)
@@ -182,7 +182,7 @@ class SentenceAnalyzer(object):
         self.dependency.eval()
 
     def morphology_analysis(self, sentences):
-        org_sentences, org_sentence_space_infos, input_sentences, sentence_symbol_mappings = self.sentence_processing.input_conversion_sentences(sentences)
+        org_sentences, org_sentence_space_infos, input_sentences, sentence_symbol_mappings = self.sentence_processing.input_conversion_sentences(sentences, self.device)
         if self.system:
             sent = org_sentences[0]
             if len(sent.split(" ")) >= 50:
@@ -201,7 +201,7 @@ class SentenceAnalyzer(object):
                 tgt_word2idx=self.preprocess_data['dict']['tgt'],
                 src_insts=word_insts),
             batch_size=self.batch_size,
-            num_workers=8,
+            num_workers=0,
             collate_fn=collate_fn
         )
         output_sentences = []
@@ -372,5 +372,3 @@ class SentenceAnalyzer(object):
         result.setdefault("error_msg", error_msg)
         result.setdefault("conll", res_parsing["result_sentences"][0][1])
         return result
-
-

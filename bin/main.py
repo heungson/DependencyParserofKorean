@@ -46,7 +46,6 @@ if __name__ == "__main__":
     except UnicodeDecodeError:
         print("File Encoding 오류: 기본 인코딩은 utf-8입니다.")
         exit()
-    sentences = sentences[:1]
     sentence_size = len(sentences)
     print("문장 수: {}".format(sentence_size))
     if gpu_list and len(gpu_list) >= 2:

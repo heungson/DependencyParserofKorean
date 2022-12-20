@@ -63,7 +63,7 @@ class CoNLLXReader(object):
                 for char in lemma:
                     lemmas.append(char)
                     lemma_ids.append(self.__char_alphabet.get_index(char))
-                if len(chars) > utils.MAX_CHAR_LENGTH:
+                if len(lemmas) > utils.MAX_CHAR_LENGTH:
                     lemmas = lemmas[:utils.MAX_CHAR_LENGTH]
                     lemma_ids = lemma_ids[:utils.MAX_CHAR_LENGTH]
                 chars.append(lemmas)

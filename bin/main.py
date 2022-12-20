@@ -1,4 +1,4 @@
-import argparse, os, sys
+import argparse, os, sys, json
 import math
 from threading import Thread
 from sentence_analyzer import SentenceAnalyzer
@@ -33,14 +33,20 @@ if __name__ == "__main__":
     batch_size = opt.batch_size
     sentences = []
     try:
-        with open(os.path.join(input_file), 'r', encoding='utf-8') as f:
-            for line in f:
-                line = line.strip()
-                sentences.append(line)
+        filename, file_extension = os.path.splitext(input_file)
+        if file_extension == '.json':
+            with open(input_file, 'r') as f:
+                sentences = json.load(f)
+        else:
+            with open(os.path.join(input_file), 'r', encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    sentences.append(line)
         # random.shuffle(sentences)
     except UnicodeDecodeError:
         print("File Encoding 오류: 기본 인코딩은 utf-8입니다.")
         exit()
+    sentences = sentences[:1]
     sentence_size = len(sentences)
     print("문장 수: {}".format(sentence_size))
     if gpu_list and len(gpu_list) >= 2:

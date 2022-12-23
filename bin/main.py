@@ -46,6 +46,7 @@ if __name__ == "__main__":
     except UnicodeDecodeError:
         print("File Encoding 오류: 기본 인코딩은 utf-8입니다.")
         exit()
+    sentences = [sent for sent in sentences if sent != '']
     sentence_size = len(sentences)
     print("문장 수: {}".format(sentence_size))
     if gpu_list and len(gpu_list) >= 2:
@@ -79,9 +80,10 @@ if __name__ == "__main__":
         
         with open(save_file, "w") as outfile:
             for filename in thread_output_file_list:
-                with open(filename) as infile:
-                    contents = infile.read()
-                    outfile.write(contents)
+                if os.path.isfile(filename):
+                    with open(filename) as infile:
+                        contents = infile.read()
+                        outfile.write(contents)
     else:
         if gpu_list:
             device = 0

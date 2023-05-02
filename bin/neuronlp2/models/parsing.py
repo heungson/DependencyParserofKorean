@@ -694,7 +694,7 @@ class StackPtrNet(nn.Module):
         children = torch.zeros(beam, 2 * length - 1, device=self.device).type_as(output_enc.data).long()
         stacked_types = children.new(children.size()).zero_()
         hypothesis_scores = output_enc.data.new(beam).zero_()
-        constraints = np.zeros([beam, length], dtype=np.bool)
+        constraints = np.zeros([beam, length], dtype=bool)
         constraints[:, 0] = True
         child_orders = np.zeros([beam, length], dtype=np.int32)
 
@@ -758,7 +758,7 @@ class StackPtrNet(nn.Module):
 
             cc = 0
             ids = []
-            new_constraints = np.zeros([beam, length], dtype=np.bool)
+            new_constraints = np.zeros([beam, length], dtype=bool)
             new_child_orders = np.zeros([beam, length], dtype=np.int32)
             for id in range(num_hyp * length):
                 base_id = base_index[id]
